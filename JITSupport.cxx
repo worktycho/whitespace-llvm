@@ -51,7 +51,8 @@ JITAPInt RetriveInstr(JITAPInt structaddress){
 	//std::cerr << "retrive from " << (std::string) address << std::endl;
 	//returns 0 (false) when there is no item present
 	if (!heap.count(address)) {
-		return {0,nullptr};
+		//return {0,nullptr};
+		error(((std::string)"no value at address ").append(address));
 	}
 	return heap.at(address).GetJITAPInt();
 }
@@ -80,21 +81,26 @@ JITAPInt AddInstr(JITAPInt value1,JITAPInt value2) {
 }
 JITAPInt MinusInstr(JITAPInt value1,JITAPInt value2) {
 	if (!value1.next && !value2.next) {
-		if(value1.value >= 0 && value2.value >= 0 && value1.value >= value2.value) {
+		//by adding value 2 to the minium you get the smallest number
+		//that value 2 can be subtracted from
+		if(value2.value >= 0 && value1.value >= ((-STD_LONG_LONG_MAX)-1)+ value2.value) {
 			return {value1.value - value2.value,nullptr};
+		} else if (value2.value < 0){
+			return AddInstr(value1,JITAPInt({-value2.value,nullptr}));
 		} else {
-			error("num to large in minus");
+			error("num to large in minus (single)");
 		}
 	} else {
 		//TODO: dosomething about overflows
-		error("num to large in minus");
+		error("num to large in minus (pointer)");
 	}
 }
 
 
 JITAPInt TimesInstr(JITAPInt value1,JITAPInt value2) {
 	if (!value1.next && !value2.next) {
-		if (! (value1.value != 0 && STD_LONG_LONG_MAX / value1.value != value2.value)) {
+		if (value1.value != 0 && (STD_LONG_LONG_MAX / value1.value >= value2.value
+  				|| STD_LONG_LONG_MAX / value1.value <= -value2.value)) {
 			return {value1.value * value2.value,nullptr};
 		} else {
 			bool value1Neg, value2Neg;
@@ -102,11 +108,14 @@ JITAPInt TimesInstr(JITAPInt value1,JITAPInt value2) {
 			value2Neg = value2.value < 0;
 			if (value1Neg) value1.value = -value1.value;
 			if (value2Neg) value2.value = -value2.value;
+			unsigned long long int unsignvalue1, unsignvalue2;
+			unsignvalue1 = value1.value;
+			unsignvalue2 = value2.value;
 			unsigned long int lowerhalf1, lowerhalf2, upperhalf1, upperhalf2;
-			lowerhalf1 = value1.value & LONG_LONG_LOWER_HALF;
-			lowerhalf2 = value2.value & LONG_LONG_LOWER_HALF;
-			upperhalf1 = (value1.value & LONG_LONG_UPPER_HALF) >> 32;
-			upperhalf2 = (value2.value & LONG_LONG_UPPER_HALF) >> 32;
+			lowerhalf1 = unsignvalue1 & LONG_LONG_LOWER_HALF;
+			lowerhalf2 = unsignvalue2 & LONG_LONG_LOWER_HALF;
+			upperhalf1 = (unsignvalue1 & LONG_LONG_UPPER_HALF) >> 32;
+			upperhalf2 = (unsignvalue2 & LONG_LONG_UPPER_HALF) >> 32;
 			unsigned long long int lowerlower,lowerupper,upperlower,upperupper;
 			lowerlower = (unsigned long long int) lowerhalf1 * (unsigned long long int) lowerhalf2;
 			lowerupper = (unsigned long long int) lowerhalf1 * (unsigned long long int) upperhalf2;
@@ -141,6 +150,13 @@ JITAPInt TimesInstr(JITAPInt value1,JITAPInt value2) {
 			} else if (result.next->value == 0) {
 				delete result.next;
 				result.next = nullptr; 
+			}
+			bool neg = (value1Neg != value2Neg);
+			if (neg) {
+				JITAPInt *pos = &result;
+				{
+					pos->value = -pos->value;
+				} while ( (pos = pos->next) != nullptr);
 			}
 		}
 	} else {

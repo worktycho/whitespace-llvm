@@ -12,6 +12,7 @@ class codegenState;
 
 #include "APInt.hxx"
 #include "FlowControlNode.hxx"
+#include "DataFlowNode.hxx"
 
 template<class T>
 void noop(T* ptr) {}
@@ -22,6 +23,7 @@ class codegenState {
 
 		llvm::Module* TheModule;
 		llvm::IRBuilder<> Builder;
+		std::vector<std::shared_ptr<DataSourceNode>> stack;
 };
 
 #endif

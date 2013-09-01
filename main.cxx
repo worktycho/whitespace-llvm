@@ -88,7 +88,7 @@ void processfile(char* filename, bool listinstructions){
 		instruction->Codegen(state);
 	}
 	state->Builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()),2));
-
+	//state->TheModule->dump();
 	for(llvm::Function& func: state->TheModule->getFunctionList()) {
 		llvm::verifyFunction(func);
 		FPM->run(func);

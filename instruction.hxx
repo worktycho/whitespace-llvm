@@ -42,8 +42,7 @@ class PushInstruction : public stackInstruction {
 		~PushInstruction() {debug_msg("deconstructed Pushinstruction");}
 		virtual void Codegen(std::shared_ptr<codegenState> state){
 			llvm::Value* serializednum = Num.Serialize(state);
-			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
-			state->Builder.CreateCall(PushInstr, serializednum);
+			DataSourceNode::createPushNode(state,serializednum);
 		}
 		virtual std::string name () {return "Push";};
 };
@@ -51,11 +50,14 @@ class PushInstruction : public stackInstruction {
 class DupInstruction : public stackInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
+			llvm::Value* value = DataConsumerNode::createPopNode(state);
+			DataSourceNode::createPushNode(state,value);
+			DataSourceNode::createPushNode(state,value);
+			/*llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
 			llvm::Value* value =  state->Builder.CreateCall(PopInstr,"dupval"); 
 			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
 			state->Builder.CreateCall(PushInstr, value);
-			state->Builder.CreateCall(PushInstr, value);
+			state->Builder.CreateCall(PushInstr, value);*/
 		}
 		virtual std::string name () {return "Dup";};
 };
@@ -63,8 +65,7 @@ class DupInstruction : public stackInstruction {
 class DiscardInstruction : public stackInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
-			state->Builder.CreateCall(PopInstr); 
+			DataConsumerNode::createPopNode(state); 
 		}
 		virtual std::string name () {return "Discard";};
 };
@@ -92,13 +93,16 @@ class SlideInstruction : public stackInstruction {
 class PlusInstruction : public arithmeticInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
+			/*llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
 			llvm::Value* value1 = state->Builder.CreateCall(PopInstr,"addval");
-			llvm::Value* value2 = state->Builder.CreateCall(PopInstr,"addval");
+			llvm::Value* value2 = state->Builder.CreateCall(PopInstr,"addval");*/
+			llvm::Value* value1 = DataConsumerNode::createPopNode(state);
+			llvm::Value* value2 = DataConsumerNode::createPopNode(state);
 			llvm::Function* AddInstr = state->TheModule->getFunction("AddInstr");
 			llvm::Value* result = state->Builder.CreateCall2(AddInstr,value1,value2,"addresult");
-			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
-			state->Builder.CreateCall(PushInstr, result);
+			DataSourceNode::createPushNode(state,result);
+			/*llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
+			state->Builder.CreateCall(PushInstr, result);*/
 		}
 		virtual std::string name () {return "Plus";};
 };
@@ -106,13 +110,12 @@ class PlusInstruction : public arithmeticInstruction {
 class MinusInstruction : public arithmeticInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
-			llvm::Value* value1 = state->Builder.CreateCall(PopInstr,"addval");
-			llvm::Value* value2 = state->Builder.CreateCall(PopInstr,"addval");
+			//top value is rhs
+			llvm::Value* value2 = DataConsumerNode::createPopNode(state);
+			llvm::Value* value1 = DataConsumerNode::createPopNode(state);
 			llvm::Function* MinusInstr = state->TheModule->getFunction("MinusInstr");
 			llvm::Value* result = state->Builder.CreateCall2(MinusInstr,value1,value2,"Minusresult");
-			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
-			state->Builder.CreateCall(PushInstr, result);
+			DataSourceNode::createPushNode(state,result);
 		}
 		virtual std::string name () {return "Minus";};
 };
@@ -120,13 +123,11 @@ class MinusInstruction : public arithmeticInstruction {
 class TimesInstruction : public arithmeticInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
-			llvm::Value* value1 = state->Builder.CreateCall(PopInstr,"timesval");
-			llvm::Value* value2 = state->Builder.CreateCall(PopInstr,"timesval");
+			llvm::Value* value1 = DataConsumerNode::createPopNode(state);
+			llvm::Value* value2 = DataConsumerNode::createPopNode(state);
 			llvm::Function* TimesInstr = state->TheModule->getFunction("TimesInstr");
 			llvm::Value* result = state->Builder.CreateCall2(TimesInstr,value1,value2,"Timesresult");
-			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
-			state->Builder.CreateCall(PushInstr, result);
+			DataSourceNode::createPushNode(state,result);
 		}
 		virtual std::string name () {return "Times";};
 };
@@ -146,9 +147,8 @@ class ModuloInstruction : public arithmeticInstruction {
 class StoreInstruction : public heapInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
-			llvm::Value* value = state->Builder.CreateCall(PopInstr,"storeval");
-			llvm::Value* address = state->Builder.CreateCall(PopInstr,"storeaddress");
+			llvm::Value* value = DataConsumerNode::createPopNode(state);
+			llvm::Value* address = DataConsumerNode::createPopNode(state);
 			llvm::Function* StoreInstr = state->TheModule->getFunction("StoreInstr");
 			state->Builder.CreateCall2(StoreInstr,address,value);
 		}
@@ -157,15 +157,10 @@ class StoreInstruction : public heapInstruction {
 class RetriveInstruction : public heapInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
-			llvm::Value* address = state->Builder.CreateCall(PopInstr,"storeaddress");
-
+			llvm::Value* address = DataConsumerNode::createPopNode(state);
 			llvm::Function* RetriveInstr = state->TheModule->getFunction("RetriveInstr");
 			llvm::Value* value = state->Builder.CreateCall(RetriveInstr,address,"retrivedval");
-
-			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
-			state->Builder.CreateCall(PushInstr, value);
-
+			DataSourceNode::createPushNode(state,value);
 }
 		virtual std::string name () {return "Retrive";};
 };
@@ -207,6 +202,7 @@ class LabelInstruction : public controlInstruction {
 		virtual void Codegen(std::shared_ptr<codegenState> state){
 			/*llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
 			llvm::Function *TheFunction = currentblock->getParent();*/
+			DataConsumerNode::SaveStack(state);
 			llvm::Function* Function = MakeFunction(label,state);
 			llvm::BasicBlock *functionstartBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", Function);
 			llvm::Value* success = state->Builder.CreateCall(Function,"callsuccess");
@@ -226,6 +222,7 @@ class JumpInstruction : public controlInstruction {
 			llvm::Function* placetojump = state->TheModule->getFunction((std::string)label);
 			if (!placetojump)
 				placetojump = MakeFunction(label,state);
+			DataConsumerNode::SaveStack(state);
 			llvm::Value* success = state->Builder.CreateCall(placetojump,"callsuccess");
 			state->Builder.CreateRet(success);
 			llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
@@ -243,6 +240,7 @@ class CallInstruction : public controlInstruction {
 	public:
 		CallInstruction(APInt value) : label (value){}
 		virtual void Codegen(std::shared_ptr<codegenState> state){
+			DataConsumerNode::SaveStack(state);
 			llvm::Function* placetojump = state->TheModule->getFunction((std::string)label);
 			if (!placetojump)
 				placetojump = MakeFunction(label,state);
@@ -271,9 +269,7 @@ class IfZeroInstruction : public controlInstruction {
 		IfZeroInstruction(APInt value) : label(value){}
 		virtual void Codegen(std::shared_ptr<codegenState> state){
 			//get value
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
-			llvm::Value* value = state->Builder.CreateCall(PopInstr,"pop");
-
+			llvm::Value* value = DataConsumerNode::createPopNode(state);
 			//preform comparason
 			llvm::StructType* APIntType = state->TheModule->getTypeByName("JITAPInt");
 			llvm::Constant* child = llvm::ConstantPointerNull::get(APIntType->getPointerTo());
@@ -283,6 +279,7 @@ class IfZeroInstruction : public controlInstruction {
 			llvm::Value* cond = state->Builder.CreateCall2(CmpZeroInstr,value,zerostruct,"cmp");
 
 			//do jump
+			DataConsumerNode::SaveStack(state);
 			llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
 			llvm::Function *TheFunction = currentblock->getParent();
 			llvm::BasicBlock *callBlock = llvm::BasicBlock::Create(llvm::getGlobalContext(), "callblock", TheFunction);
@@ -309,6 +306,7 @@ class IfNegInstruction : public controlInstruction {
 class ReturnInstruction : public controlInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
+			DataConsumerNode::SaveStack(state);
 			state->Builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()),0));
 llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
 			llvm::Function *TheFunction = currentblock->getParent();
@@ -327,6 +325,11 @@ class EndInstruction : public controlInstruction {
 			//put apInt as label once output sorted
 			llvm::BasicBlock *continueBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "afterend", TheFunction);
 			state->Builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()),0));
+			if (!state->stack.empty()) {
+				DataConsumerNode::SaveStack(state);
+				std::cerr << "program cannot end normally" << std::endl;
+				abort();
+			}
 			state->Builder.SetInsertPoint(continueBB);
 
 		}
@@ -336,8 +339,9 @@ class EndInstruction : public controlInstruction {
 class OutputCharInstruction : public ioInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
-			llvm::Value* ch = state->Builder.CreateCall(PopInstr,"outputchar");
+			/*llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
+			llvm::Value* ch = state->Builder.CreateCall(PopInstr,"outputchar");*/
+			llvm::Value* ch = DataConsumerNode::createPopNode(state);
 			llvm::Function* OutputCharInstr = state->TheModule->getFunction("OutputCharInstr");
 			state->Builder.CreateCall(OutputCharInstr, ch);
 		}
@@ -347,8 +351,9 @@ class OutputCharInstruction : public ioInstruction {
 class OutputNumInstruction : public ioInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
-			llvm::Value* num = state->Builder.CreateCall(PopInstr,"outputnum");
+			/*llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
+			llvm::Value* num = state->Builder.CreateCall(PopInstr,"outputnum");*/
+			llvm::Value* num = DataConsumerNode::createPopNode(state);
 			llvm::Function* OutputNumInstr = state->TheModule->getFunction("OutputNumInstr");
 			state->Builder.CreateCall(OutputNumInstr, num);
 		}
@@ -358,10 +363,13 @@ class OutputNumInstruction : public ioInstruction {
 class ReadCharInstruction : public ioInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
+			llvm::Value* address = DataConsumerNode::createPopNode(state);
 			llvm::Function* ReadNumInstr = state->TheModule->getFunction("ReadCharInstr");
 			llvm::Value* ch = state->Builder.CreateCall(ReadNumInstr,"charread");
-			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
-			state->Builder.CreateCall(PushInstr, ch);
+			llvm::Function* StoreInstr = state->TheModule->getFunction("StoreInstr");
+			state->Builder.CreateCall2(StoreInstr,address,ch);
+			/*llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
+			state->Builder.CreateCall(PushInstr, ch);*/
 		}
 		virtual std::string name () {return "Read Char";};
 };
@@ -369,10 +377,14 @@ class ReadCharInstruction : public ioInstruction {
 class ReadNumInstruction : public ioInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
+
+			llvm::Value* address = DataConsumerNode::createPopNode(state);
 			llvm::Function* ReadNumInstr = state->TheModule->getFunction("ReadNumInstr");
 			llvm::Value* num = state->Builder.CreateCall(ReadNumInstr,"numread");
-			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
-			state->Builder.CreateCall(PushInstr, num);
+			llvm::Function* StoreInstr = state->TheModule->getFunction("StoreInstr");
+			state->Builder.CreateCall2(StoreInstr,address,num);
+			/*llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
+			state->Builder.CreateCall(PushInstr, num);*/
 		}
 		virtual std::string name () {return "Read Num";};
 };
