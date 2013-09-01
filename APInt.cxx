@@ -2,8 +2,7 @@
 
 #include <iostream>
 
-#define LONG_LONG_HIGH_BIT 0x4000000000000000LL
-#define STD_LONG_LONG_MAX  0x7FFFFFFFFFFFFFFFLL
+
 
 void inline error(std::string msg) {
 	std::cerr << msg << std::endl;

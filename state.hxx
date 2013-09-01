@@ -18,13 +18,10 @@ void noop(T* ptr) {}
 
 class codegenState {
 	public:
-		inline codegenState(): Builder(llvm::getGlobalContext()), TheModule(new llvm::Module("wspace-jit",llvm::getGlobalContext())), CurrentNode(std::shared_ptr<FlowControlNode>(new StartNode())) {}		
+		inline codegenState(): Builder(llvm::getGlobalContext()), TheModule(new llvm::Module("wspace-jit",llvm::getGlobalContext())) {}		
 
 		llvm::Module* TheModule;
 		llvm::IRBuilder<> Builder;
-		std::map<APInt,std::shared_ptr<LabelNode>> LabelCollection;
-		std::shared_ptr<FlowControlNode> CurrentNode;
-
 };
 
 #endif

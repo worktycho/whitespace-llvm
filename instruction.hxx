@@ -145,14 +145,59 @@ class ModuloInstruction : public arithmeticInstruction {
 
 class StoreInstruction : public heapInstruction {
 	public:
-		virtual void Codegen(std::shared_ptr<codegenState> state){}
+		virtual void Codegen(std::shared_ptr<codegenState> state){
+			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
+			llvm::Value* value = state->Builder.CreateCall(PopInstr,"storeval");
+			llvm::Value* address = state->Builder.CreateCall(PopInstr,"storeaddress");
+			llvm::Function* StoreInstr = state->TheModule->getFunction("StoreInstr");
+			state->Builder.CreateCall2(StoreInstr,address,value);
+		}
 		virtual std::string name () {return "Store";};
 };
 class RetriveInstruction : public heapInstruction {
 	public:
-		virtual void Codegen(std::shared_ptr<codegenState> state){}
+		virtual void Codegen(std::shared_ptr<codegenState> state){
+			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
+			llvm::Value* address = state->Builder.CreateCall(PopInstr,"storeaddress");
+
+			llvm::Function* RetriveInstr = state->TheModule->getFunction("RetriveInstr");
+			llvm::Value* value = state->Builder.CreateCall(RetriveInstr,address,"retrivedval");
+
+			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
+			state->Builder.CreateCall(PushInstr, value);
+
+}
 		virtual std::string name () {return "Retrive";};
 };
+
+
+//uses reverse tail call optemiztion for jumps
+//tail call optimization is when you convert a call followed by a return in to a jump
+//in reverse tail call a jump is represented by a call followed by a return
+//this allows the labels to use a common namespace for jumps and calls and use
+//predecareation for backwards jumps
+
+inline llvm::Function* MakeFunction(APInt label,std::shared_ptr<codegenState> state){
+	llvm::FunctionType *FT = llvm::FunctionType::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), false);
+	llvm::Function *Function = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, (std::string)label, state->TheModule);
+	//Fastcall so tailcail optermization can be applied
+	Function->setCallingConv(llvm::CallingConv::ID::Fast);
+	// If F conflicted, there was already something named 'Name'.  If it has a
+	// body, don't allow redefinition or reextern.
+	if (Function->getName() != (std::string)label) {
+		// Delete the one we just made and get the existing one.
+		Function->eraseFromParent();
+		Function = state->TheModule->getFunction((std::string)label);
+
+		// If F already has a body, reject this.
+		if (!Function->empty()) {
+			std::cerr << "redefinition of function" << std::endl;
+	  		return nullptr;
+		}
+	}
+	return Function;
+}
+
 
 class LabelInstruction : public controlInstruction {
 	private:
@@ -160,23 +205,13 @@ class LabelInstruction : public controlInstruction {
 	public:
 		LabelInstruction(APInt value) : label(value) {}
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			std::map<APInt,std::shared_ptr<LabelNode>>::iterator it = state->LabelCollection.find(this->label);
-			std::shared_ptr<LabelNode> node;
-			if(it != state->LabelCollection.end())
-			{
-   				node = it->second;
-			} else {
-				node = std::shared_ptr<LabelNode>(new LabelNode);
-				state->LabelCollection.insert(std::pair<APInt,std::shared_ptr<LabelNode>>(this->label,node));
-			}
-			llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
-			llvm::Function *TheFunction = currentblock->getParent();
-			//put apInt as label once output sorted
-			llvm::BasicBlock *continueBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "label", TheFunction);
-			state->Builder.CreateBr(continueBB);
-			state->Builder.SetInsertPoint(continueBB);
-			node->setJumpPoint(continueBB);
-			state->CurrentNode = node;
+			/*llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
+			llvm::Function *TheFunction = currentblock->getParent();*/
+			llvm::Function* Function = MakeFunction(label,state);
+			llvm::BasicBlock *functionstartBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", Function);
+			llvm::Value* success = state->Builder.CreateCall(Function,"callsuccess");
+			state->Builder.CreateRet(success);
+			state->Builder.SetInsertPoint(functionstartBB);
 		}
 		virtual std::string name () {return ((std::string)"Label").append(label);};
 };
@@ -188,19 +223,14 @@ class JumpInstruction : public controlInstruction {
 		JumpInstruction(APInt value) : label(value) {}
 		std::string getLabelAsString() {return label;}
 		virtual void Codegen(std::shared_ptr<codegenState> state){
+			llvm::Function* placetojump = state->TheModule->getFunction((std::string)label);
+			if (!placetojump)
+				placetojump = MakeFunction(label,state);
+			llvm::Value* success = state->Builder.CreateCall(placetojump,"callsuccess");
+			state->Builder.CreateRet(success);
 			llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
 			llvm::Function *TheFunction = currentblock->getParent();
 			llvm::BasicBlock *continueBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "afterjump", TheFunction);
-			std::map<APInt,std::shared_ptr<LabelNode>>::iterator it = state->LabelCollection.find(this->label);
-			std::shared_ptr<LabelNode> node;
-			if(it != state->LabelCollection.end())
-			{
-   				node = it->second;
-			} else {
-				node = std::shared_ptr<LabelNode>(new LabelNode());
-				state->LabelCollection.insert(std::pair<APInt,std::shared_ptr<LabelNode>>(this->label,node));
-			}
-			node->InsertJump(currentblock);
 			state->Builder.SetInsertPoint(continueBB);
 		}
 		virtual std::string name () {return ((std::string)"Jump").append(this->getLabelAsString());};
@@ -213,26 +243,22 @@ class CallInstruction : public controlInstruction {
 	public:
 		CallInstruction(APInt value) : label (value){}
 		virtual void Codegen(std::shared_ptr<codegenState> state){
+			llvm::Function* placetojump = state->TheModule->getFunction((std::string)label);
+			if (!placetojump)
+				placetojump = MakeFunction(label,state);
+			llvm::Value* successcode = state->Builder.CreateCall(placetojump,"callsuccess");
+			llvm::Value* success = state->Builder.CreateICmpEQ(successcode,llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()),0),"callsuccessbool");
+
+			//return if failed
 			llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
 			llvm::Function *TheFunction = currentblock->getParent();
-			//put apInt as label once output sorted
-			llvm::BasicBlock *continueBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "resumecall", TheFunction);
-			std::map<APInt,std::shared_ptr<LabelNode>>::iterator it = state->LabelCollection.find(this->label);
-			std::shared_ptr<LabelNode> labelnode;
-			if(it != state->LabelCollection.end())
-			{
-   				labelnode = it->second;
-			} else {
-				labelnode = std::shared_ptr<LabelNode>(new LabelNode());
-				state->LabelCollection.insert(std::pair<APInt,std::shared_ptr<LabelNode>>(this->label,labelnode));
-			}
-			std::shared_ptr<CallSite> node(new CallSite(continueBB,labelnode));
-			node->setMyPointer(node);
-			llvm::Function* PushInstr = state->TheModule->getFunction("PushCallStackInstr");
-			state->Builder.CreateCall(PushInstr,node->getID());
-			state->CurrentNode = node;
-			labelnode->InsertJump(currentblock);
-			state->Builder.SetInsertPoint(continueBB);
+			llvm::BasicBlock *retBlock = llvm::BasicBlock::Create(llvm::getGlobalContext(), "callblock", TheFunction);
+			llvm::BasicBlock *continueBlock = llvm::BasicBlock::Create(llvm::getGlobalContext(), "aftercalljump");
+			state->Builder.CreateCondBr(success,continueBlock,retBlock);
+			state->Builder.SetInsertPoint(retBlock);
+			state->Builder.CreateRet(successcode);
+			TheFunction->getBasicBlockList().push_back(continueBlock);
+			state->Builder.SetInsertPoint(continueBlock);
 		}
 		virtual std::string name () {return ((std::string)"Call").append(label);};
 };
@@ -244,29 +270,32 @@ class IfZeroInstruction : public controlInstruction {
 	public:
 		IfZeroInstruction(APInt value) : label(value){}
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			//TODO:convert to bool
+			//get value
 			llvm::Function* PopInstr = state->TheModule->getFunction("PopInstr");
 			llvm::Value* value = state->Builder.CreateCall(PopInstr,"pop");
+
+			//preform comparason
 			llvm::StructType* APIntType = state->TheModule->getTypeByName("JITAPInt");
 			llvm::Constant* child = llvm::ConstantPointerNull::get(APIntType->getPointerTo());
 			llvm::Constant* zerostructvalue = llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()),0,true);
 			llvm::Constant* zerostruct = llvm::ConstantStruct::get(APIntType,zerostructvalue,child, nullptr);
 			llvm::Function* CmpZeroInstr = state->TheModule->getFunction("CmpEqualInstr");
 			llvm::Value* cond = state->Builder.CreateCall2(CmpZeroInstr,value,zerostruct,"cmp");
-			std::map<APInt,std::shared_ptr<LabelNode>>::iterator it = state->LabelCollection.find(this->label);
-			std::shared_ptr<LabelNode> node;
-			if(it != state->LabelCollection.end())
-			{
-   				node = it->second;
-			} else {
-				node = std::shared_ptr<LabelNode>(new LabelNode());
-				state->LabelCollection.insert(std::pair<APInt,std::shared_ptr<LabelNode>>(this->label,node));
-			}
+
+			//do jump
 			llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
 			llvm::Function *TheFunction = currentblock->getParent();
-			llvm::BasicBlock *continueBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "afterjump", TheFunction);
-			node->InsertCondJump(currentblock,continueBB,cond);
-			state->Builder.SetInsertPoint(continueBB);
+			llvm::BasicBlock *callBlock = llvm::BasicBlock::Create(llvm::getGlobalContext(), "callblock", TheFunction);
+			llvm::BasicBlock *elseBlock = llvm::BasicBlock::Create(llvm::getGlobalContext(), "aftercondjump");
+			state->Builder.CreateCondBr(cond,callBlock,elseBlock);
+			state->Builder.SetInsertPoint(callBlock);
+			llvm::Function* placetojump = state->TheModule->getFunction((std::string)label);
+			if (!placetojump)
+				placetojump = MakeFunction(label,state);
+			llvm::Value* success = state->Builder.CreateCall(placetojump,"callsuccess");
+			state->Builder.CreateRet(success);
+			TheFunction->getBasicBlockList().push_back(elseBlock);
+			state->Builder.SetInsertPoint(elseBlock);
 		}
 		virtual std::string name () {return "Jump If Zero";};
 };
@@ -280,16 +309,12 @@ class IfNegInstruction : public controlInstruction {
 class ReturnInstruction : public controlInstruction {
 	public:
 		virtual void Codegen(std::shared_ptr<codegenState> state){
-			//break in block
-			//callsite helper functions
-			// push and pop callstack
-			llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
+			state->Builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()),0));
+llvm::BasicBlock* currentblock = state->Builder.GetInsertBlock();
 			llvm::Function *TheFunction = currentblock->getParent();
-			llvm::BasicBlock *continueBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "afterret", TheFunction);
-			ReturnSite* node = new ReturnSite(state->CurrentNode, currentblock,state->TheModule);
-			state->CurrentNode = std::shared_ptr<FlowControlNode>(node);
-			//leave returnSite to terminate previous block
+			llvm::BasicBlock *continueBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "afterreturn", TheFunction);
 			state->Builder.SetInsertPoint(continueBB);
+			
 		}
 		virtual std::string name () {return "Return";};
 };
@@ -332,13 +357,23 @@ class OutputNumInstruction : public ioInstruction {
 
 class ReadCharInstruction : public ioInstruction {
 	public:
-		virtual void Codegen(std::shared_ptr<codegenState> state){}
+		virtual void Codegen(std::shared_ptr<codegenState> state){
+			llvm::Function* ReadNumInstr = state->TheModule->getFunction("ReadCharInstr");
+			llvm::Value* ch = state->Builder.CreateCall(ReadNumInstr,"charread");
+			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
+			state->Builder.CreateCall(PushInstr, ch);
+		}
 		virtual std::string name () {return "Read Char";};
 };
 
 class ReadNumInstruction : public ioInstruction {
 	public:
-		virtual void Codegen(std::shared_ptr<codegenState> state){}
+		virtual void Codegen(std::shared_ptr<codegenState> state){
+			llvm::Function* ReadNumInstr = state->TheModule->getFunction("ReadNumInstr");
+			llvm::Value* num = state->Builder.CreateCall(ReadNumInstr,"numread");
+			llvm::Function* PushInstr = state->TheModule->getFunction("PushInstr");
+			state->Builder.CreateCall(PushInstr, num);
+		}
 		virtual std::string name () {return "Read Num";};
 };
 #endif

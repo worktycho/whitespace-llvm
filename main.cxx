@@ -87,10 +87,14 @@ void processfile(char* filename, bool listinstructions){
 		if (listinstructions) std::cout << instruction->name() << std::endl;
 		instruction->Codegen(state);
 	}
-	state->CurrentNode = std::shared_ptr<FlowControlNode>(new StartNode());
 	state->Builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()),2));
-	llvm::verifyFunction(*main);
-	//FPM->run(*main);
+
+	for(llvm::Function& func: state->TheModule->getFunctionList()) {
+		llvm::verifyFunction(func);
+		FPM->run(func);
+	}
+	state->TheModule->dump();
+
 	// JIT the function, returning a function pointer.
 	void *FPtr = ExecutionEngine->getPointerToFunction(main);
 
@@ -98,7 +102,6 @@ void processfile(char* filename, bool listinstructions){
 	// can call it as a native function.
 	void (*FP)() = (void (*)())(intptr_t)FPtr;
 	FP();
-	state->TheModule->dump();
 }
 
 void initalcode(std::shared_ptr<codegenState> state){
@@ -130,12 +133,15 @@ void initalcode(std::shared_ptr<codegenState> state){
 
 	llvm::Function::Create(PushInstrType, llvm::Function::ExternalLinkage, "OutputNumInstr", state->TheModule);
 
-	llvm::ArrayRef<llvm::Type*> PushCallStackInstrArgs(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
-	llvm::FunctionType* PushCallStackInstrType = llvm::FunctionType::get(llvm::Type::getVoidTy(context),PushCallStackInstrArgs, false);
-	llvm::Function::Create(PushCallStackInstrType, llvm::Function::ExternalLinkage, "PushCallStackInstr", state->TheModule);
+	llvm::FunctionType* StoreInstrType = llvm::FunctionType::get(llvm::Type::getVoidTy(context),AddInstrArgs, false);
+	llvm::Function::Create(StoreInstrType, llvm::Function::ExternalLinkage, "StoreInstr", state->TheModule);
 
-	llvm::FunctionType* PopCallStackInstrType = llvm::FunctionType::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), false);
-	llvm::Function::Create(PopCallStackInstrType, llvm::Function::ExternalLinkage, "PopCallStackInstr", state->TheModule);
+	llvm::FunctionType* RetriveInstrType = llvm::FunctionType::get(APInt,PushInstrArgs, false);
+	llvm::Function::Create(RetriveInstrType, llvm::Function::ExternalLinkage, "RetriveInstr", state->TheModule);
+
+	llvm::Function::Create(PopInstrType, llvm::Function::ExternalLinkage, "ReadNumInstr", state->TheModule);
+
+	llvm::Function::Create(PopInstrType, llvm::Function::ExternalLinkage, "ReadCharInstr", state->TheModule);
 }
 
 std::shared_ptr<llvm::FunctionPassManager> FPMSetup(llvm::Module* TheModule, std::shared_ptr<llvm::ExecutionEngine> ExecutionEngine) {
@@ -148,13 +154,17 @@ std::shared_ptr<llvm::FunctionPassManager> FPMSetup(llvm::Module* TheModule, std
 	// Provide basic AliasAnalysis support for GVN.
 	OurFPM->add(llvm::createBasicAliasAnalysisPass());
 	// Do simple "peephole" optimizations and bit-twiddling optzns.
-	OurFPM->add(llvm::createInstructionCombiningPass());
+	/*OurFPM->add(llvm::createInstructionCombiningPass());*/
 	// Reassociate expressions.
 	OurFPM->add(llvm::createReassociatePass());
+	//TailCall elimination
+	OurFPM->add(llvm::createTailCallEliminationPass());
 	// Eliminate Common SubExpressions.
 	OurFPM->add(llvm::createGVNPass());
 	// Simplify the control flow graph (deleting unreachable blocks, etc).
 	OurFPM->add(llvm::createCFGSimplificationPass());
+
+
 
 	OurFPM->doInitialization();
 
