@@ -57,13 +57,7 @@ JITAPInt RetriveInstr(JITAPInt structaddress){
 	return heap.at(address).GetJITAPInt();
 }
 
-std::pair<long long int, long long int> lladdwithcarry(long long int value1, long long int value2) {
-	if (!(value1 >= 0 && value2 >= 0)) error("negative num in add");
-	if (STD_LONG_LONG_MAX - value1 >= value2) return std::pair<long long int, long long int>(0,value1+value2);
-	long long int space = STD_LONG_LONG_MAX - value1;
-	long long int result = value2 - space;
-	return std::pair<long long int, long long int>(1,result);
-}
+
 
 
 
@@ -98,71 +92,7 @@ JITAPInt MinusInstr(JITAPInt value1,JITAPInt value2) {
 
 
 JITAPInt TimesInstr(JITAPInt value1,JITAPInt value2) {
-	if (!value1.next && !value2.next) {
-		if (value1.value != 0 && (STD_LONG_LONG_MAX / value1.value >= value2.value
-  				|| STD_LONG_LONG_MAX / value1.value <= -value2.value)) {
-			return {value1.value * value2.value,nullptr};
-		} else {
-			bool value1Neg, value2Neg;
-			value1Neg = value1.value < 0;
-			value2Neg = value2.value < 0;
-			if (value1Neg) value1.value = -value1.value;
-			if (value2Neg) value2.value = -value2.value;
-			unsigned long long int unsignvalue1, unsignvalue2;
-			unsignvalue1 = value1.value;
-			unsignvalue2 = value2.value;
-			unsigned long int lowerhalf1, lowerhalf2, upperhalf1, upperhalf2;
-			lowerhalf1 = unsignvalue1 & LONG_LONG_LOWER_HALF;
-			lowerhalf2 = unsignvalue2 & LONG_LONG_LOWER_HALF;
-			upperhalf1 = (unsignvalue1 & LONG_LONG_UPPER_HALF) >> 32;
-			upperhalf2 = (unsignvalue2 & LONG_LONG_UPPER_HALF) >> 32;
-			unsigned long long int lowerlower,lowerupper,upperlower,upperupper;
-			lowerlower = (unsigned long long int) lowerhalf1 * (unsigned long long int) lowerhalf2;
-			lowerupper = (unsigned long long int) lowerhalf1 * (unsigned long long int) upperhalf2;
-			upperlower = (unsigned long long int) upperhalf1 * (unsigned long long int) lowerhalf2;
-			upperupper = (unsigned long long int) upperhalf1 * (unsigned long long int) upperhalf2;
-			JITAPInt result;
-			bool lowerlowertopbitset = (lowerlower & UNSIGN_LONG_LONG_HIGH_BIT) == UNSIGN_LONG_LONG_HIGH_BIT;
-			result.value = lowerlower & STD_LONG_LONG_MAX;
-			result.next = new JITAPInt;
-			result.next->next = nullptr;
-			result.next->value = lowerlowertopbitset ? 1 : 0;
-			//32 bit shift and add lower upper
-			lowerhalf1 = (lowerupper & LONG_LONG_LOWER_31) << 32;
-			lowerhalf2 = (upperlower & LONG_LONG_LOWER_31) << 32;
-			upperhalf1 = (lowerupper & UNSIGN_LONG_LONG_UPPER_33) >> 31;
-			upperhalf2 = (upperlower & UNSIGN_LONG_LONG_UPPER_33) >> 31;
-			std::pair<long long int, long long int> lowerhalfaddresult = lladdwithcarry(result.value,lowerhalf1);
-			result.next->value += lowerhalfaddresult.first;
-			lowerhalfaddresult = lladdwithcarry(lowerhalfaddresult.second,lowerhalf2);
-			result.next->value += lowerhalfaddresult.first;
-			result.value = lowerhalfaddresult.second;
-			//cant overflow as 32 bit;
-			result.next->value += upperhalf1;
-			result.next->value += upperhalf2;
-			//64 bit shift and add upper upper
-			std::pair<long long int, long long int> upperhalfaddresult = lladdwithcarry(result.next->value,upperupper);
-			result.next->value = upperhalfaddresult.second;
-			if (upperhalfaddresult.first != 0) {
-				result.next->next = new JITAPInt;
-				result.next->next->next = nullptr;
-				result.next->next->value = upperhalfaddresult.first;
-			} else if (result.next->value == 0) {
-				delete result.next;
-				result.next = nullptr; 
-			}
-			bool neg = (value1Neg != value2Neg);
-			if (neg) {
-				JITAPInt *pos = &result;
-				{
-					pos->value = -pos->value;
-				} while ( (pos = pos->next) != nullptr);
-			}
-		}
-	} else {
-		//TODO: dosomething about overflows
-		error("input num to large times");
-	}
+	return JITAPIntTimes(value1,value2);
 }
 
 bool CmpEqualInstr(JITAPInt value1,JITAPInt value2) {
@@ -189,10 +119,14 @@ JITAPInt ReadCharInstr(){
 	
 JITAPInt ReadNumInstr(){
 	char ch;
-	std::cin >> ch;
-	//convert ascii code to num
-	if (ch < '0' || ch > '9') error("not a num");
-	ch -= '0';
-	return {ch,nullptr};
+	APIntBuilder builder;
+	if (std::cin.peek() < '0' || std::cin.peek() > '9') error("not a num");
+	while (std::cin.peek() >= '0' && std::cin.peek() <= '9') {
+		builder.multiplyby10();
+		std::cin >> ch;
+		ch -= '0';
+		builder.add(ch);
+	}
+	return ((APInt)builder).GetJITAPInt();
 }
 

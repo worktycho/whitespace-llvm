@@ -20,8 +20,11 @@ struct JITAPInt {
 	JITAPInt* next;
 };
 
+std::pair<long long int, long long int> lladdwithcarry(long long int value1, long long int value2);
+
 void FreeJITAPInt(JITAPInt* value);
 bool JITAPIntlessthan(const JITAPInt const * lhs, const JITAPInt const* rhs);
+JITAPInt JITAPIntTimes(JITAPInt value1,JITAPInt value2);
 
 class APInt {
 	private:
@@ -47,7 +50,9 @@ class APIntBuilder {
 		~APIntBuilder();
 		void makeNegative();
 		void doubleval();
+		void multiplyby10();
 		void addOne();
+		void add(char value);
 		operator APInt();
 		bool operator< (const APInt rhs) const;
 };
