@@ -35,7 +35,7 @@ class APInt {
 		llvm::Constant* Serialize(std::shared_ptr<codegenState> state);
 		bool operator< (const APInt rhs) const;
 		operator std::string () const;
-		JITAPInt GetJITAPInt() {return value;}
+		JITAPInt GetJITAPInt() const {return value;}
 };
 
 class APIntBuilder {
@@ -49,6 +49,7 @@ class APIntBuilder {
 		void doubleval();
 		void addOne();
 		operator APInt();
+		bool operator< (const APInt rhs) const;
 };
 
 

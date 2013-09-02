@@ -24,6 +24,7 @@ class codegenState {
 		llvm::Module* TheModule;
 		llvm::IRBuilder<> Builder;
 		std::vector<std::shared_ptr<DataSourceNode>> stack;
+		std::map<llvm::Value*,std::shared_ptr<DataSourceNode>> cache;
 };
 
 #endif

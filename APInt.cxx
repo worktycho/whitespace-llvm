@@ -122,6 +122,13 @@ APIntBuilder::operator APInt() {
 	return APInt(&this->value);
 }
 
+bool APIntBuilder::operator< (const APInt rhs) const{
+	JITAPInt temp = rhs.GetJITAPInt();
+	bool returnval = JITAPIntlessthan(&this->value,&temp);
+	FreeJITAPInt(temp.next);
+	return returnval;
+}
+
 APIntBuilder::~APIntBuilder() {
 	//this->value is deleted with me
 	FreeJITAPInt(this->value.next);
