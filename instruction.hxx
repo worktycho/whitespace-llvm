@@ -217,7 +217,7 @@ inline llvm::Function* MakeFunction(APInt label,std::shared_ptr<codegenState> st
 
 		// If F already has a body, reject this.
 		if (!Function->empty()) {
-			std::cerr << "redefinition of function" << std::endl;
+			std::cerr << "warning: redefinition of label " << (std::string)label << std::endl;
 	  		return nullptr;
 		}
 	}
@@ -235,10 +235,13 @@ class LabelInstruction : public controlInstruction {
 			llvm::Function *TheFunction = currentblock->getParent();*/
 			DataConsumerNode::SaveStack(state);
 			llvm::Function* Function = MakeFunction(label,state);
-			llvm::BasicBlock *functionstartBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", Function);
-			llvm::Value* success = state->Builder.CreateCall(Function,"callsuccess");
-			state->Builder.CreateRet(success);
-			state->Builder.SetInsertPoint(functionstartBB);
+			//ignore redefs
+			if (Function) {
+				llvm::BasicBlock *functionstartBB = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", Function);
+				llvm::Value* success = state->Builder.CreateCall(Function,"callsuccess");
+				state->Builder.CreateRet(success);
+				state->Builder.SetInsertPoint(functionstartBB);
+			}
 		}
 		virtual std::string name () {return ((std::string)"Label").append(label);};
 };

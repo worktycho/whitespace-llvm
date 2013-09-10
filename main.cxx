@@ -86,6 +86,7 @@ void processfile(char* filename, bool listinstructions){
 	while(par.TryGetNextInstruction(instruction)) {
 		if (listinstructions) std::cout << instruction->name() << std::endl;
 		instruction->Codegen(state);
+		//state->TheModule->dump();
 	}
 	state->Builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()),2));
 	//state->TheModule->dump();
@@ -121,14 +122,16 @@ void initalcode(std::shared_ptr<codegenState> state){
 	llvm::Type* AddInstrArgsarr[] = {APInt,APInt};
 	llvm::ArrayRef<llvm::Type*> AddInstrArgs(AddInstrArgsarr, 2);
 	llvm::FunctionType* AddInstrType = llvm::FunctionType::get(APInt,AddInstrArgs,false);
-	llvm::Function::Create(AddInstrType, llvm::Function::ExternalLinkage, "AddInstr", state->TheModule);
+	llvm::Function* AddInstr = llvm::Function::Create(AddInstrType, llvm::Function::ExternalLinkage, "AddInstr", state->TheModule);
+	AddInstr->setOnlyReadsMemory();
 
-	llvm::Function::Create(AddInstrType, llvm::Function::ExternalLinkage, "MinusInstr", state->TheModule);
-	llvm::Function::Create(AddInstrType, llvm::Function::ExternalLinkage, "TimesInstr", state->TheModule);
-	
+	llvm::Function* MinusInstr = llvm::Function::Create(AddInstrType, llvm::Function::ExternalLinkage, "MinusInstr", state->TheModule);
+	MinusInstr->setOnlyReadsMemory();
+	llvm::Function* TimesInstr = llvm::Function::Create(AddInstrType, llvm::Function::ExternalLinkage, "TimesInstr", state->TheModule);
+	TimesInstr->setOnlyReadsMemory();
 	llvm::FunctionType* CmpZeroInstrType = llvm::FunctionType::get(llvm::Type::getInt1Ty(context),AddInstrArgs, false);
-	llvm::Function::Create(CmpZeroInstrType, llvm::Function::ExternalLinkage, "CmpEqualInstr", state->TheModule);
-
+	llvm::Function* CmpEqualInstr = llvm::Function::Create(CmpZeroInstrType, llvm::Function::ExternalLinkage, "CmpEqualInstr", state->TheModule);
+	CmpEqualInstr->setOnlyReadsMemory();
 	llvm::Function::Create(PushInstrType, llvm::Function::ExternalLinkage, "OutputCharInstr", state->TheModule);
 
 	llvm::Function::Create(PushInstrType, llvm::Function::ExternalLinkage, "OutputNumInstr", state->TheModule);

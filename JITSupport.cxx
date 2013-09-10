@@ -3,6 +3,7 @@
 #include <iostream>
 #include <limits>
 #include <vector>
+#include <cctype>
 
 extern "C" {
 	void PushInstr(JITAPInt value);
@@ -120,10 +121,16 @@ JITAPInt ReadCharInstr(){
 JITAPInt ReadNumInstr(){
 	char ch;
 	APIntBuilder builder;
-	if (std::cin.peek() < '0' || std::cin.peek() > '9') error("not a num");
-	while (std::cin.peek() >= '0' && std::cin.peek() <= '9') {
-		builder.multiplyby10();
+	//eat white space
+	std::cin >> std::ws;
+	if (std::cin.peek() == '-') {
 		std::cin >> ch;
+		builder.makeNegative();
+	}
+	if (std::cin.peek() < '0' || std::cin.peek() > '9') error("not a num");
+	while ((std::cin).peek() >= '0' && (std::cin).peek() <= '9') {
+		builder.multiplyby10();
+		std::cin >> std::ws >> ch;
 		ch -= '0';
 		builder.add(ch);
 	}
