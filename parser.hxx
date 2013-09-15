@@ -8,22 +8,19 @@
 #include "instruction.hxx"
 #include "APInt.hxx"
 
-class syntaxErrorException: public std::exception{};
-
 class parser {
 	public:
 		parser(std::shared_ptr<tokeniser> tokeniser);
 		~parser() = default;
 		
-		bool TryGetNextInstruction(std::shared_ptr<instruction>& instruction) throw (syntaxErrorException);
+		bool TryGetNextInstruction(std::shared_ptr<instruction>& instruction);
 	private:
 		std::shared_ptr<tokeniser> m_tokeniser;
-		tokens GetNextToken();
-		std::shared_ptr<stackInstruction> parseStackInstructions() throw (syntaxErrorException);
-		std::shared_ptr<arithmeticInstruction> parseArithmeticInstructions() throw (syntaxErrorException);
-		std::shared_ptr<heapInstruction> parseHeapInstructions() throw (syntaxErrorException);
-		std::shared_ptr<controlInstruction> parseControlInstructions() throw (syntaxErrorException);
-		std::shared_ptr<ioInstruction> parseIOInstructions() throw (syntaxErrorException);
-		APInt ParseNumber();
+		bool parseStackInstructions(std::shared_ptr<instruction>& instruction);
+		bool parseArithmeticInstructions(std::shared_ptr<instruction>& instruction );
+		bool parseHeapInstructions(std::shared_ptr<instruction>& instruction);
+		bool parseControlInstructions(std::shared_ptr<instruction>& instruction);
+		bool parseIOInstructions(std::shared_ptr<instruction>& instruction);
+		bool ParseNumber(APInt& num);
 };
 #endif
