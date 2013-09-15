@@ -8,7 +8,11 @@ void DataSourceNode::createPushNode(std::shared_ptr<codegenState> state, llvm::V
 	state->stack.push_back(std::shared_ptr<RegisterPushNode>(new RegisterPushNode(value)));
 }
 void DataSourceNode::createMemStore(std::shared_ptr<codegenState> state, llvm::Value* address, llvm::Value* value){
-	state->cache[address] = std::shared_ptr<DataSourceNode>(new MemoryStoreNode(value));
+	if (llvm::isa<llvm::Constant>(address)) {
+		state->cache[address] = std::shared_ptr<DataSourceNode>(new MemoryStoreNode(value));
+	} else {
+		state->cache.clear();
+	}
 	assertdefined(state->TheModule)
 	assertdefined(address)
 	assertdefined(value)
