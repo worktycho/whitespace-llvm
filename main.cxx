@@ -14,6 +14,7 @@
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/JIT.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/IPO.h"
 #include "llvm/DataLayout.h"
 
 #include "tokeniser.hxx"
@@ -164,6 +165,14 @@ std::shared_ptr<llvm::PassManager> PMSetup(llvm::Module* TheModule, std::shared_
 	OurPM->add(llvm::createGVNPass());
 	// Simplify the control flow graph (deleting unreachable blocks, etc).
 	OurPM->add(llvm::createCFGSimplificationPass());
+
+	OurPM->add(llvm::createFunctionInliningPass());	
+
+	//OurPM->add(llvm::createInstructionCombiningPass());
+
+	//OurPM->add(llvm::createDeadCodeEliminationPass());
+
+	//OurPM->add(llvm::createCFGSimplificationPass());
 
 	// Set the global so the code gen can use this.
 	return OurPM;

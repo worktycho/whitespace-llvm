@@ -4,7 +4,7 @@ CXX_FLAGS=-c `/home/tycho/llvm-3.2-debug+asserts/Release+Asserts/bin/llvm-config
 
 
 debug: main.o APInt.o tokeniser.o DataFlowNode.o JITSupport.o parser.o
-	$(CXX) main.o APInt.o tokeniser.o DataFlowNode.o JITSupport.o parser.o -L/home/tycho/llvm-3.2-debug+asserts/Release+Asserts/lib `/home/tycho/llvm-3.2-debug+asserts/Release+Asserts/bin/llvm-config --libs core jit native` `/home/tycho/llvm-3.2-debug+asserts/Release+Asserts/bin/llvm-config --ldflags` -rdynamic -g -O0 -o wspace-jit
+	$(CXX) main.o APInt.o tokeniser.o DataFlowNode.o JITSupport.o parser.o -L/home/tycho/llvm-3.2-debug+asserts/Release+Asserts/lib `/home/tycho/llvm-3.2-debug+asserts/Release+Asserts/bin/llvm-config --libs core jit native ipo` `/home/tycho/llvm-3.2-debug+asserts/Release+Asserts/bin/llvm-config --ldflags` -rdynamic -g -O0 -o wspace-jit
 
 main.o: main.cxx tokeniser.hxx parser.hxx state.hxx
 	$(CXX) main.cxx $(CXX_FLAGS)
