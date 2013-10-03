@@ -12,6 +12,7 @@
 #include "asserts.hxx"
 #include "state.hxx"
 #include "APInt.hxx"
+#include "DataFlowNode.hxx"
 
 class instruction {
 public:

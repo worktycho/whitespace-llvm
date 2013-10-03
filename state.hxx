@@ -10,12 +10,7 @@
 
 class codegenState;
 
-#include "APInt.hxx"
-#include "FlowControlNode.hxx"
-#include "DataFlowNode.hxx"
-
-template<class T>
-void noop(T* ptr) {}
+class DataSourceNode;
 
 class codegenState {
 	public:
