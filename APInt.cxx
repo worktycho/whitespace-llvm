@@ -1,7 +1,7 @@
 #include "APInt.hxx"
 
 #include <iostream>
-
+#include <valgrind/memcheck.h>
 
 
 void inline error(std::string msg) {
@@ -107,18 +107,24 @@ JITAPInt JITAPIntTimes(JITAPInt value1,JITAPInt value2) {
 	}
 }
 llvm::Constant* APInt::Serialize(std::shared_ptr<codegenState> state){
-	return this->Serializehelper(state,&value);
+	llvm::Constant* tmp = this->Serializehelper(state,&this->value);
+	VALGRIND_CHECK_VALUE_IS_DEFINED(tmp);
+	return tmp;
 }
 
 llvm::Constant* APInt::Serializehelper(std::shared_ptr<codegenState> state, JITAPInt* num){
 	llvm::Constant* child;
+	VALGRIND_CHECK_VALUE_IS_DEFINED(state);
+	VALGRIND_CHECK_VALUE_IS_DEFINED(state->TheModule);
 	llvm::StructType* APIntType = state->TheModule->getTypeByName("JITAPInt");
+	VALGRIND_CHECK_VALUE_IS_DEFINED(APIntType);
 	if (num->next != nullptr) {
 		child = Serializehelper(state,num->next);
 	} else {
 		child = llvm::ConstantPointerNull::get(APIntType->getPointerTo());
 	}
 	llvm::Constant* Value = llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()),num->value,true);
+	VALGRIND_CHECK_VALUE_IS_DEFINED(Value);
 	return llvm::ConstantStruct::get(APIntType,Value,child, nullptr);
 }
 

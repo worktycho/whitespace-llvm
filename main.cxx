@@ -24,7 +24,7 @@
 void usage();
 void processfile(char* filename, bool listinstructions);
 void initalcode(std::shared_ptr<codegenState> state);
-std::shared_ptr<llvm::FunctionPassManager> FPMSetup(llvm::Module* TheModule, std::shared_ptr<llvm::ExecutionEngine> ExecutionEngine);
+std::shared_ptr<llvm::PassManager> PMSetup(llvm::Module* TheModule, std::shared_ptr<llvm::ExecutionEngine> ExecutionEngine);
 
 int main(int argc, char* argv[]) {
 	//try {
@@ -82,7 +82,7 @@ void processfile(char* filename, bool listinstructions){
     	fprintf(stderr, "Could not create ExecutionEngine: %s\n", ErrStr.c_str());
     	exit(1);
   	}
-	std::shared_ptr<llvm::FunctionPassManager> FPM = FPMSetup(state->TheModule,ExecutionEngine);
+	std::shared_ptr<llvm::PassManager> PM = PMSetup(state->TheModule,ExecutionEngine);
 	while(par.TryGetNextInstruction(instruction)) {
 		if (listinstructions) std::cout << instruction->name() << std::endl;
 		instruction->Codegen(state);
@@ -90,10 +90,8 @@ void processfile(char* filename, bool listinstructions){
 	}
 	state->Builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()),2));
 	//state->TheModule->dump();
-	for(llvm::Function& func: state->TheModule->getFunctionList()) {
-		llvm::verifyFunction(func);
-		FPM->run(func);
-	}
+	llvm::verifyModule(*state->TheModule);
+	PM->run(*state->TheModule);
 	state->TheModule->dump();
 
 	// JIT the function, returning a function pointer.
@@ -147,31 +145,27 @@ void initalcode(std::shared_ptr<codegenState> state){
 	llvm::Function::Create(PopInstrType, llvm::Function::ExternalLinkage, "ReadCharInstr", state->TheModule);
 }
 
-std::shared_ptr<llvm::FunctionPassManager> FPMSetup(llvm::Module* TheModule, std::shared_ptr<llvm::ExecutionEngine> ExecutionEngine) {
+std::shared_ptr<llvm::PassManager> PMSetup(llvm::Module* TheModule, std::shared_ptr<llvm::ExecutionEngine> ExecutionEngine) {
 
-	std::shared_ptr<llvm::FunctionPassManager> OurFPM(new llvm::FunctionPassManager(TheModule));
+	std::shared_ptr<llvm::PassManager> OurPM(new llvm::PassManager());
 
 	// Set up the optimizer pipeline.  Start with registering info about how the
 	// target lays out data structures.
-	OurFPM->add(new llvm::DataLayout(*ExecutionEngine->getDataLayout()));
+	OurPM->add(new llvm::DataLayout(*ExecutionEngine->getDataLayout()));
 	// Provide basic AliasAnalysis support for GVN.
-	OurFPM->add(llvm::createBasicAliasAnalysisPass());
+	OurPM->add(llvm::createBasicAliasAnalysisPass());
 	// Do simple "peephole" optimizations and bit-twiddling optzns.
 	/*OurFPM->add(llvm::createInstructionCombiningPass());*/
 	// Reassociate expressions.
-	OurFPM->add(llvm::createReassociatePass());
+	OurPM->add(llvm::createReassociatePass());
 	//TailCall elimination
-	OurFPM->add(llvm::createTailCallEliminationPass());
+	OurPM->add(llvm::createTailCallEliminationPass());
 	// Eliminate Common SubExpressions.
-	OurFPM->add(llvm::createGVNPass());
+	OurPM->add(llvm::createGVNPass());
 	// Simplify the control flow graph (deleting unreachable blocks, etc).
-	OurFPM->add(llvm::createCFGSimplificationPass());
-
-
-
-	OurFPM->doInitialization();
+	OurPM->add(llvm::createCFGSimplificationPass());
 
 	// Set the global so the code gen can use this.
-	return OurFPM;
+	return OurPM;
 
 }

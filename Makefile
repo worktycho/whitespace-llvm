@@ -1,6 +1,6 @@
 
 CXX=clang++
-CXX_FLAGS=-c `/home/tycho/llvm-3.2-debug+asserts/Release+Asserts/bin/llvm-config --cxxflags --cppflags` -std=c++11 -fexceptions
+CXX_FLAGS=-c `/home/tycho/llvm-3.2-debug+asserts/Release+Asserts/bin/llvm-config --cxxflags --cppflags` -g -std=c++11 -fexceptions -Wno-unused-value
 
 
 debug: main.o APInt.o tokeniser.o DataFlowNode.o JITSupport.o parser.o

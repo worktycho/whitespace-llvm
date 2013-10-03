@@ -30,7 +30,7 @@ class RegisterPushNode : public DataSourceNode {
 private:
 	llvm::Value* value;
 public:
-	RegisterPushNode(llvm::Value* val) : value(val) { assertdefined(this->value)}
+	RegisterPushNode(llvm::Value* val) : value(val) {VALGRIND_CHECK_VALUE_IS_DEFINED(this->value);}
 	virtual llvm::Value* getValue(std::shared_ptr<codegenState> state);
 };
 

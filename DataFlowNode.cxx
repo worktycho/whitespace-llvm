@@ -3,8 +3,9 @@
 #include <iostream>
 
 #include "asserts.hxx"
-
+#include <valgrind/memcheck.h>
 void DataSourceNode::createPushNode(std::shared_ptr<codegenState> state, llvm::Value* value){
+	VALGRIND_CHECK_VALUE_IS_DEFINED(value);
 	state->stack.push_back(std::shared_ptr<RegisterPushNode>(new RegisterPushNode(value)));
 }
 void DataSourceNode::createMemStore(std::shared_ptr<codegenState> state, llvm::Value* address, llvm::Value* value){

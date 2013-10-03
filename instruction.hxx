@@ -43,7 +43,9 @@ class PushInstruction : public stackInstruction {
 		PushInstruction(APInt value): Num(value){debug_msg("constructed Pushinstruction");} 
 		~PushInstruction() {debug_msg("deconstructed Pushinstruction");}
 		virtual void Codegen(std::shared_ptr<codegenState> state){
+			VALGRIND_CHECK_VALUE_IS_DEFINED(state);
 			llvm::Value* serializednum = Num.Serialize(state);
+			VALGRIND_CHECK_VALUE_IS_DEFINED(serializednum);
 			DataSourceNode::createPushNode(state,serializednum);
 		}
 		virtual std::string name () {return "Push";};
